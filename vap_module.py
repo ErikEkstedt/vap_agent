@@ -50,7 +50,7 @@ class VAP(retico_core.AbstractModule):
         )
         self.chunk_size = int(frame_time * self.audio_sample_rate)
         self.n_samples = int(buffer_time * self.sample_rate)
-        self.x = torch.zeros((1, 2, self.n_samples))
+        self.x = torch.zeros((1, 2, self.n_samples), device=self.device)
 
     def load_model(self, checkpoint):
         print("Load Model...")
@@ -58,8 +58,11 @@ class VAP(retico_core.AbstractModule):
         self.model = self.model.eval()
         self.sample_rate = self.model.sample_rate
         self.frame_hz = self.model.frame_hz
+        self.device = "cpu"
         if torch.cuda.is_available():
             self.model = self.model.to("cuda")
+            self.device = "cuda"
+            print("CUDA")
 
     def reset(self):
         self.x = torch.zeros((1, 2, self.n_samples))
@@ -77,8 +80,7 @@ class VAP(retico_core.AbstractModule):
         # Add most recent chunk to the end
         # WARNING! only for a single channel update
         self.x[..., : -self.chunk_size] = self.x[..., self.chunk_size :]
-        self.x[0, 0, -self.chunk_size :] = chunk
-
+        self.x[0, 0, -self.chunk_size :] = chunk.to(self.device)
         # self.x[0, :, -self.chunk_size :] = torch.stack([chunk, torch.zeros_like(chunk)])
         # When we update two channels we must do something different
         # self.x[0, 0, : -self.chunk_size] = self.x[0, 0, self.chunk_size :].clone()
@@ -90,12 +92,10 @@ class VAP(retico_core.AbstractModule):
 
     def _vap_thread(self):
         while self._vap_thread_active:
-            time.sleep(0.2)
+            time.sleep(0.5)
             out = self.model.output(self.x)
             pp = out["p"][0, -10:, 1].mean().item()
-            print(pp)
-            # if pp > 0.5:
-            #     print("TAKE TURN")
+            print("Speaker B -> ", round(100 * pp, 2))
 
     def prepare_run(self):
         self._vap_thread_active = True
@@ -111,7 +111,7 @@ if __name__ == "__main__":
 
     sample_rate = 16000
     mic = MicrophoneModule(rate=sample_rate)
-    vapper = VAP(audio_sample_rate=sample_rate, buffer_time=2)
+    vapper = VAP(audio_sample_rate=sample_rate, buffer_time=10)
     speaker = SpeakerModule(rate=sample_rate)
 
     # Setup connections

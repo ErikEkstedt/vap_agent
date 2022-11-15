@@ -31,10 +31,12 @@ class VapModule(retico_core.AbstractModule):
         self,
         checkpoint="",
         buffer_time=10,
+        refresh_time=0.5,
         **kwargs,
     ):
         super().__init__(**kwargs)
         self.checkpoint = checkpoint
+        self.refresh_time = refresh_time
         self.sample_rate = 16_000
         self.buffer_time = buffer_time
         self.n_samples = int(buffer_time * self.sample_rate)
@@ -42,7 +44,7 @@ class VapModule(retico_core.AbstractModule):
         self.load_model(
             "../VoiceActivityProjection/example/VAP_3mmz3t0u_50Hz_ad20s_134-epoch9-val_2.56.ckpt"
         )
-        self.x = torch.zeros((2, self.n_samples), device=self.device)
+        self.x = torch.zeros((1, 2, self.n_samples), device=self.device)
 
     def load_model(self, checkpoint):
         print("Load Model...")
@@ -56,22 +58,53 @@ class VapModule(retico_core.AbstractModule):
             self.device = "cuda"
             print("CUDA")
 
-    def reset(self):
-        self.x = torch.zeros((2, self.n_samples))
-
     def process_update(self, update_msg):
         for iu, ut in update_msg:
             if ut != retico_core.UpdateType.ADD:
                 continue
             self.x = iu.tensor
 
+    def get_speaker_probs_print(self, pp, n=100):
+        p = int(n * pp)
+        pn = n - p
+        text = "A |"
+        text += "▉" * p
+        text += "-" * pn
+        text += "| B"
+        return text
+
+    def get_speaker_probs_print_bins(self, pp, last_pp):
+
+        if last_pp < 0.5:
+            lim = 0.4
+        else:
+            lim = 0.6
+
+        text = "<" + "-" * 30 + " OPTIONAL " + "-" * 30 + ">"
+        if pp < lim:
+            text = "AAAAA"
+        elif pp > lim:
+            text = " " * 60 + "BBBBBB"
+        return text
+
     def _thread(self):
+        print("Starting VAP-Thread")
+        print("Refresh-time: ", self.refresh_time)
+
+        n_frames = 20
+
         while self._thread_is_active:
-            time.sleep(0.4)
-            out = self.model.output(self.x.unsqueeze(0).to(self.device))
-            pp = out["p"][0, -10:, 1].mean().item()
-            p = int(50 * pp)
-            print("Speaker B -> ", "#" * p)
+            time.sleep(self.refresh_time)
+            out = self.model.output(self.x)
+            # pp = out["p_all"][0, -n_frames:, 1].mean().item()
+            pp = out["p"][0, -n_frames:, 1].mean().item()
+            # last_pp = out["p"][0, :-n_frames, 1].mean().item()
+            t = self.get_speaker_probs_print(pp)
+            # t = self.get_speaker_probs_print_bins(pp, last_pp)
+            print(t)
+
+    def reset(self):
+        pass
 
     def prepare_run(self):
         self._thread_is_active = True

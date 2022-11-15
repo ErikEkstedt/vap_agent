@@ -1,34 +1,32 @@
 import retico_core
-from retico_core.audio import AudioIU
-
 import torch
-import numpy as np
-import threading
 import queue
 import pyaudio
 
-"""
-https://github.com/retico-team/retico-core
-https://github.com/retico-team/retico-wav2vecasr
-https://github.com/retico-team/retico
+from utils import TensorIU
 
-https://github.com/ErikEkstedt/retico/blob/master/retico/agent/hearing.py
-"""
+NORM_FACTOR = 1 / (2 ** 15)
 
 
-def get_name_to_index(p=None):
-    if p is None:
-        p = pyaudio.PyAudio()
-    name2idx = {}
-    idx2name = []
-    for i in range(p.get_device_count()):
-        info = p.get_device_info_by_index(i)
-        name2idx[info["name"]] = i
-        idx2name.append(info["name"])
-    return name2idx, idx2name
+def torchify_audio_callback(update_msg):
+    for iu, ut in update_msg:
+        if ut != retico_core.UpdateType.ADD:
+            continue
+        chunk = torch.frombuffer(iu.raw_audio, dtype=torch.int16).float() * NORM_FACTOR
+        b = chunk[::2]
+        a = chunk[1::2]
+        print(a.max(), " <----> ", b.max())
 
 
-class MicrophoneModuleDevice(retico_core.AbstractProducingModule):
+def audioTensorCallback(update_msg):
+    for iu, ut in update_msg:
+        if ut != retico_core.UpdateType.ADD:
+            continue
+        t = iu.tensor
+        print(t[0, 0].max(), " <----> ", t[0, 1].max())
+
+
+class MicrophoneStereoModule(retico_core.AbstractProducingModule):
     """A module that produces IUs containing audio signals that are captures by
     a microphone."""
 
@@ -42,16 +40,15 @@ class MicrophoneModuleDevice(retico_core.AbstractProducingModule):
 
     @staticmethod
     def output_iu():
-        return AudioIU
+        return retico_core.audio.AudioIU
 
     def __init__(
         self,
-        speaker=0,
         frame_length=0.02,
         sample_width=2,
-        channels=1,
+        sample_rate=16_000,
+        channels=2,
         device=None,
-        # rate=44100,
         **kwargs,
     ):
         """Initialize the Microphone Module. Args:
@@ -62,8 +59,8 @@ class MicrophoneModuleDevice(retico_core.AbstractProducingModule):
         super().__init__(**kwargs)
         self.frame_length = frame_length
         self.sample_width = sample_width
+        self.sample_rate = sample_rate
         self.channels = channels
-        self.speaker = speaker
 
         # Pyaudio
         self._p = pyaudio.PyAudio()
@@ -79,11 +76,11 @@ class MicrophoneModuleDevice(retico_core.AbstractProducingModule):
 
     def __repr__(self):
         s = "MicrophoneModule"
-        s += f"\nDevice: {self.device}"
-        s += f"\nRate: {self.rate}"
+        s += f"\nSampleRate: {self.sample_rate}"
         s += f"\nFrame length: {self.frame_length}"
         s += f"\nSample width: {self.sample_width}"
         s += f"\nChannels: {self.channels}"
+        s += f"\nDevice: {self.device}"
         s += f"\nDevice index: {self.device_index}"
         return s
 
@@ -119,12 +116,12 @@ class MicrophoneModuleDevice(retico_core.AbstractProducingModule):
             return None
         output_iu = self.create_iu()
         output_iu.set_audio(sample, self.chunk_size, self.rate, self.sample_width)
-        # Set what speaker I am
-        # output_iu.speaker = self.speaker
         return retico_core.UpdateMessage.from_iu(output_iu, retico_core.UpdateType.ADD)
 
     def setup(self):
         """Set up the microphone for recording."""
+
+        print("Setup Microphone")
         self.stream = self._p.open(
             format=self._p.get_format_from_width(self.sample_width),
             channels=self.channels,
@@ -136,8 +133,6 @@ class MicrophoneModuleDevice(retico_core.AbstractProducingModule):
             input_device_index=self.device_index,
             start=False,
         )
-
-        print("Setup Microphone")
         if self.device is None:
             device = self._p.get_default_input_device_info()
             print(f"Device: {device['name']}")
@@ -150,95 +145,89 @@ class MicrophoneModuleDevice(retico_core.AbstractProducingModule):
 
     def shutdown(self):
         """Close the audio stream."""
-        self.stream.stop_stream()
-        self.stream.close()
+        if self.stream is not None:
+            self.stream.stop_stream()
+            self.stream.close()
         self.stream = None
         self.audio_buffer = queue.Queue()
 
 
-# TODO: callback module to show AudioIO inputs from separate channels/speakers
+class AudioToTensor(retico_core.AbstractModule):
+    """A module that produces IUs containing audio signals that are captures by
+    a microphone."""
 
+    @staticmethod
+    def name():
+        return "Microphone Module"
 
-def debug():
-    def callback(in_data, frame_count, time_info, status):
-        """The callback function that gets called by pyaudio.
-        Args:
-            in_data (bytes[]): The raw audio that is coming in from the
-                microphone
-            frame_count (int): The number of frames that are stored in in_data
+    @staticmethod
+    def description():
+        return "A prodicing module that records audio from microphone."
+
+    @staticmethod
+    def input_ius():
+        return [retico_core.audio.AudioIU]
+
+    @staticmethod
+    def output_iu():
+        return TensorIU
+
+    def __init__(self, buffer_time=2, sample_rate=16_000, device="cpu", **kwargs):
+        """Initialize the Microphone Module. Args:
+        frame_length (float): The length of one frame (i.e., IU) in seconds
+        rate (int): The frame rate of the recording
+        sample_width (int): The width of a single sample of audio in bytes.
         """
-        print("frame_count: ", frame_count)
-        return (in_data, pyaudio.paContinue)
+        super().__init__(**kwargs)
+        self.sample_rate = sample_rate
+        self.buffer_time = buffer_time
+        self.device = device
 
-    p = pyaudio.PyAudio()
+        self.n_samples = int(sample_rate * buffer_time)
+        self.tensor = torch.zeros((1, 2, self.n_samples), device=device)
 
-    n2i, i2n = get_name_to_index(p)
+    def update_tensor(self, audio_bytes):
+        chunk = torch.frombuffer(audio_bytes, dtype=torch.int16).float() * NORM_FACTOR
 
-    frame_length = 0.02
-    sample_width = 2
-    channels = 1
-    rate = 48000
-    chunk_size = round(rate * frame_length)
-    device_index = 31
-    info = p.get_device_info_by_index(device_index)
-    api_info = p.get_device_info_by_host_api_device_index(info["hostApi"], 1)
+        # Split stereo audio
+        b = chunk[::2]
+        a = chunk[1::2]
+        chunk_size = a.shape[0]
 
-    print("Name: ", i2n[device_index])
-    for k, v in info.items():
-        print(f"{k}: {v}")
+        # Move values back
+        self.tensor = self.tensor.roll(-chunk_size, -1)
+        self.tensor[0, 0, -chunk_size:] = a.to(self.device)
+        self.tensor[0, 1, -chunk_size:] = b.to(self.device)
 
-    stream = p.open(
-        format=p.get_format_from_width(sample_width),
-        channels=channels,
-        rate=rate,
-        input=True,
-        output=False,
-        stream_callback=callback,
-        frames_per_buffer=chunk_size,
-        input_device_index=device_index,
-        start=False,
-    )
+    def process_update(self, update_msg):
+        for iu, ut in update_msg:
+            if ut == retico_core.UpdateType.ADD:
+                self.update_tensor(iu.raw_audio)
 
-    n2i = get_name_to_index()
+        output_iu = self.create_iu()
+        output_iu.set_tensor(self.tensor)
+        return retico_core.UpdateMessage.from_iu(output_iu, retico_core.UpdateType.ADD)
+
+    def setup(self):
+        pass
+
+    def prepare_run(self):
+        pass
+
+    def shutdown(self):
+        """Close the audio stream."""
+        self.tensor = torch.zeros((1, 2, self.n_samples), device=self.device)
 
 
 if __name__ == "__main__":
-    from retico_core.network import run, stop
-    from retico_core.audio import SpeakerModule, MicrophoneModule
-    from retico_core.debug import CallbackModule
+    mic = MicrophoneStereoModule()
+    a2t = AudioToTensor()
+    mic.subscribe(a2t)
+    # clb = retico_core.debug.CallbackModule(torchify_audio_callback)
+    # mic.subscribe(clb)
+    clb = retico_core.debug.CallbackModule(audioTensorCallback)
+    a2t.subscribe(clb)
 
-    n2i = get_name_to_index()
-
-    # device = "Sony SingStar USBMIC Analog Stereo"
-    # device = "SteelSeries Arctis 7 Chat"
-    device = None
-    sample_rate = 16000
-    mic = MicrophoneModule(rate=sample_rate)
-    print("-" * 40)
-    print(mic)
-    print("-" * 40)
-    mic.setup()
-
-    # device1 = "SteelSeries Arctis 7 Chat"
-    # mic = MicrophoneModule(device=device1, speaker=1, rate=48000)
-    # mic = MicrophoneModule()
-    # print(mic)
-    # print("-" * 40)
-
-    if True:
-        vv = VAP(audio_sample_rate=sample_rate, buffer_time=2)
-        speaker = SpeakerModule(rate=sample_rate)
-        mic.subscribe(vv)
-        mic.subscribe(speaker)
-
-        # mic1.subscribe(vv)
-        # clb = CallbackModule(mic_callback)
-        # setup
-        # mic.subscribe(clb)
-        # mic1.subscribe(speaker)
-        print("run")
-        run(mic)
-        # run(mic1)
-        input()
-        stop(mic)
-        # stop(mic1)
+    retico_core.network.run(mic)
+    input()
+    retico_core.network.stop(mic)

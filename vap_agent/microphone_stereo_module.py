@@ -71,8 +71,8 @@ class MicrophoneStereoModule(retico_core.AbstractProducingModule):
         self.device = device
         self.device_index = self.get_device_index(device)
         self.device_info = self._p.get_device_info_by_index(self.device_index)
-        self.rate = int(self.device_info["defaultSampleRate"])
-        self.chunk_size = round(self.rate * frame_length)
+        # self.rate = int(self.device_info["defaultSampleRate"])
+        self.chunk_size = round(self.sample_rate * frame_length)
 
     def __repr__(self):
         s = "MicrophoneModule"
@@ -115,7 +115,9 @@ class MicrophoneStereoModule(retico_core.AbstractProducingModule):
         except queue.Empty:
             return None
         output_iu = self.create_iu()
-        output_iu.set_audio(sample, self.chunk_size, self.rate, self.sample_width)
+        output_iu.set_audio(
+            sample, self.chunk_size, self.sample_rate, self.sample_width
+        )
         return retico_core.UpdateMessage.from_iu(output_iu, retico_core.UpdateType.ADD)
 
     def setup(self):
@@ -125,7 +127,7 @@ class MicrophoneStereoModule(retico_core.AbstractProducingModule):
         self.stream = self._p.open(
             format=self._p.get_format_from_width(self.sample_width),
             channels=self.channels,
-            rate=self.rate,
+            rate=self.sample_rate,
             input=True,
             output=False,
             stream_callback=self.callback,
@@ -133,6 +135,11 @@ class MicrophoneStereoModule(retico_core.AbstractProducingModule):
             input_device_index=self.device_index,
             start=False,
         )
+        print("format: ", self.stream._format)
+        print("channels: ", self.stream._channels)
+        print("rate: ", self.stream._rate)
+        print("frames_per_buffer: ", self.stream._frames_per_buffer)
+        input()
         if self.device is None:
             device = self._p.get_default_input_device_info()
             print(f"Device: {device['name']}")

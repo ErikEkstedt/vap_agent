@@ -93,15 +93,27 @@ class VapModule(retico_core.AbstractModule):
 
         n_frames = 20
 
+        times = []
         while self._thread_is_active:
             time.sleep(self.refresh_time)
+            # t = time.time()
             out = self.model.output(self.x)
             # pp = out["p_all"][0, -n_frames:, 1].mean().item()
             pp = out["p"][0, -n_frames:, 1].mean().item()
+            pabc = round(100 * out["p_bc"][0, -n_frames:, 0].mean().item(), 2)
+            pbbc = round(100 * out["p_bc"][0, -n_frames:, 1].mean().item(), 2)
             # last_pp = out["p"][0, :-n_frames, 1].mean().item()
-            t = self.get_speaker_probs_print(pp)
-            # t = self.get_speaker_probs_print_bins(pp, last_pp)
-            print(t)
+            cli_text = self.get_speaker_probs_print(pp)
+            # cli_t = self.get_speaker_probs_print_bins(pp, last_pp)
+            print(cli_text)
+            # print(f"A bc: {pabc}%")
+            # print(f"B bc: {pbbc}%")
+            # times.append(time.time() - t)
+
+        # tt = torch.tensor(times)
+        # u = round(tt.mean().item(), 4)
+        # s = round(tt.std().item(), 4)
+        # print(f"Forward: {u} +- {s}")
 
     def reset(self):
         pass

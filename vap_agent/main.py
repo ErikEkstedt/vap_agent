@@ -1,13 +1,9 @@
 import retico_core
 from argparse import ArgumentParser
 
-from microphone_zmq_module import MicrophoneZMQModule
-from microphone_stereo_module import (
-    MicrophoneStereoModule,
-    AudioToTensor,
-    audioTensorCallback,
-)
-from audio_collector_module import AudioCollector
+# from audio_collector_module import AudioCollector
+# from microphone_zmq_module import MicrophoneZMQModule
+from microphone_stereo_module import MicrophoneStereoModule, AudioToTensor
 from vap_module import VapModule
 
 from vap.audio import log_mel_spectrogram
@@ -24,23 +20,24 @@ def get_args():
     return parser.parse_args()
 
 
-def main_zmq(args):
-    print("ZMQ VAP Main")
-    for k, v in vars(args).items():
-        print(f"{k}: {v}")
-
-    mic = MicrophoneZMQModule(speaker=0, port=args.port1)
-    mic2 = MicrophoneZMQModule(speaker=1, port=args.port2)
-    coll = AudioCollector()
-    vapper = VapModule(refresh_time=args.refresh_time)
-
-    mic.subscribe(coll)
-    mic2.subscribe(coll)
-    coll.subscribe(vapper)
-
-    retico_core.network.run(mic)
-    input()
-    retico_core.network.stop(mic)
+# def main_zmq(args):
+#     print("ZMQ VAP Main")
+#     for k, v in vars(args).items():
+#         print(f"{k}: {v}")
+#
+#     mic = MicrophoneZMQModule(speaker=0, port=args.port1)
+#     mic2 = MicrophoneZMQModule(speaker=1, port=args.port2)
+#     coll = AudioCollector()
+#     vapper = VapModule(refresh_time=args.refresh_time)
+#
+#     mic.subscribe(coll)
+#     mic2.subscribe(coll)
+#     coll.subscribe(vapper)
+#
+#     retico_core.network.run(mic)
+#     input()
+#     retico_core.network.stop(mic)
+#
 
 
 def main(args):
@@ -78,7 +75,7 @@ def main_debug(args):
     a2t.subscribe(vapper)
 
     ############################################################
-    plot = False
+    plot = True
     if plot:
         fig, ax = plt.subplots(2, 1)
         z = torch.zeros((1, 2, int(16_000 * args.buffer_time)))
@@ -117,6 +114,7 @@ def main_debug(args):
                 fig.canvas.flush_events()
         except KeyboardInterrupt:
             print("KeyboardInterrupt")
+            print("Stop process and exiti gracefully")
             break
     retico_core.network.stop(mic)
 

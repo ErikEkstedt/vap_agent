@@ -1,0 +1,39 @@
+import zmq
+import time
+import msgpack
+import msgpack_numpy as m
+
+m.patch()
+
+
+# Create ZMQ socket
+port = 5557
+context = zmq.Context()
+INTERVAL = 0.1
+
+pair = False
+if pair:
+    socket = context.socket(zmq.PAIR)
+    socket.connect(f"tcp://localhost:{port}")
+
+    i = 0
+    while True:
+        msg = socket.recv()
+        d = msgpack.unpackb(msg)
+        print(d)
+        time.sleep(INTERVAL)
+        i += 1
+        print(f"received {i}")
+else:
+    socket = context.socket(zmq.SUB)
+    socket.connect(f"tcp://localhost:{port}")
+    topic = "data"
+    socket.setsockopt_string(zmq.SUBSCRIBE, topic)
+
+    i = 0
+    while True:
+        topic = socket.recv_string()
+        d = socket.recv_pyobj()
+        print("received: ", type(d["x"]), d)
+        time.sleep(INTERVAL)
+        i += 1

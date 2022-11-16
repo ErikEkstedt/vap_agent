@@ -34,6 +34,6 @@ else:
     while True:
         topic = socket.recv_string()
         d = socket.recv_pyobj()
-        print("received: ", type(d["x"]), d)
+        print("received: ", type(d))
         time.sleep(INTERVAL)
         i += 1

@@ -2,8 +2,9 @@ import retico_core
 import torch
 import threading
 import time
+import zmq
 
-from utils import TensorIU
+from vap_agent.utils import TensorIU
 
 # model imports
 from vap.model import VAPModel
@@ -12,6 +13,9 @@ from vap.utils import everything_deterministic
 
 everything_deterministic()
 torch.manual_seed(0)
+
+
+CHECKPOINT = "../VoiceActivityProjection/example/VAP_3mmz3t0u_50Hz_ad20s_134-epoch9-val_2.56.ckpt"
 
 
 class VapModule(retico_core.AbstractModule):
@@ -29,9 +33,11 @@ class VapModule(retico_core.AbstractModule):
 
     def __init__(
         self,
-        checkpoint="",
-        buffer_time=10,
-        refresh_time=0.5,
+        checkpoint: str = CHECKPOINT,
+        buffer_time: float = 10,
+        refresh_time: float = 0.5,
+        zmq_use: bool = False,
+        zmq_port=5557,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -41,9 +47,12 @@ class VapModule(retico_core.AbstractModule):
         self.buffer_time = buffer_time
         self.n_samples = int(buffer_time * self.sample_rate)
 
-        self.load_model(
-            "../VoiceActivityProjection/example/VAP_3mmz3t0u_50Hz_ad20s_134-epoch9-val_2.56.ckpt"
-        )
+        # ZMQ
+        self.zmq_use = zmq_use
+        self.zmq_port = zmq_port
+        self.zmq_topic = "vap"
+
+        self.load_model(self.checkpoint)
         self.x = torch.zeros((1, 2, self.n_samples), device=self.device)
 
     def load_model(self, checkpoint):
@@ -93,30 +102,32 @@ class VapModule(retico_core.AbstractModule):
 
         n_frames = 20
 
-        times = []
+        probs_buffer = torch.zeros(100)
         while self._thread_is_active:
             time.sleep(self.refresh_time)
-            # t = time.time()
             out = self.model.output(self.x)
             # pp = out["p_all"][0, -n_frames:, 1].mean().item()
             pp = out["p"][0, -n_frames:, 1].mean().item()
+            probs_buffer = probs_buffer.roll(-1, 0)
+            probs_buffer[-1] = pp
             pabc = round(100 * out["p_bc"][0, -n_frames:, 0].mean().item(), 2)
             pbbc = round(100 * out["p_bc"][0, -n_frames:, 1].mean().item(), 2)
             # last_pp = out["p"][0, :-n_frames, 1].mean().item()
-            cli_text = self.get_speaker_probs_print(pp)
+            # cli_text = self.get_speaker_probs_print(pp)
             # cli_t = self.get_speaker_probs_print_bins(pp, last_pp)
-            print(cli_text)
-            # print(f"A bc: {pabc}%")
-            # print(f"B bc: {pbbc}%")
-            # times.append(time.time() - t)
+            # print(cli_text)
 
-        # tt = torch.tensor(times)
-        # u = round(tt.mean().item(), 4)
-        # s = round(tt.std().item(), 4)
-        # print(f"Forward: {u} +- {s}")
+            if self.zmq_use:
+                self.socket.send_string(self.zmq_topic, zmq.SNDMORE)
+                self.socket.send_pyobj(probs_buffer)
 
-    def reset(self):
-        pass
+    def setup(self):
+        print("SETUP VAP")
+        if self.zmq_use:
+            socket_ip = f"tcp://*:{self.zmq_port}"
+            self.socket = zmq.Context().socket(zmq.PUB)
+            self.socket.bind(socket_ip)
+            print("Setup VAP ZMQ socket: ", socket_ip)
 
     def prepare_run(self):
         self._thread_is_active = True
@@ -124,4 +135,21 @@ class VapModule(retico_core.AbstractModule):
 
     def shutdown(self):
         self._thread_is_active = False
-        self.reset()
+
+
+if __name__ == "__main__":
+    from vap_agent.microphone_stereo_module import MicrophoneStereoModule
+    from vap_agent.audio_to_tensor_module import AudioToTensor, audioTensorCallback
+
+    mic = MicrophoneStereoModule()
+    vapper = VapModule(buffer_time=10, refresh_time=0.1, zmq_use=True)
+    a2t = AudioToTensor(buffer_time=10, device=vapper.device)
+    # clb = retico_core.debug.CallbackModule(audioTensorCallback)
+
+    mic.subscribe(a2t)
+    a2t.subscribe(vapper)
+    # a2t.subscribe(clb)
+
+    retico_core.network.run(mic)
+    input()
+    retico_core.network.stop(mic)

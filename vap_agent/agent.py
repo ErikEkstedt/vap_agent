@@ -1,5 +1,7 @@
 from os.path import join
-from os import makedirs
+from pathlib import Path
+import datetime
+
 from dataclasses import dataclass
 import retico_core
 import time
@@ -12,6 +14,7 @@ from vap_agent.vap_module import VapModule
 @dataclass
 class AgentConfig:
     savepath: str
+    runs_path: str = "runs"
     sample_rate: int = 16_000
     sample_width: int = 2
     sample_frame_time: float = 0.02
@@ -25,16 +28,21 @@ class Agent:
     def __init__(self, conf) -> None:
         self.conf = conf
 
-        makedirs(self.paths["root"], exist_ok=True)
-        print("Created: ", self.paths["root"])
-
+        ###############################################
+        # Create savepath
+        if self.conf.record:
+            Path(self.paths["root"]).mkdir(parents=True, exist_ok=True)
+            print("Created: ", self.paths["root"])
         self.build()
 
     @property
     def paths(self):
+        x = datetime.datetime.now()
+        date = x.strftime("%y%m%d_%H:%M")
+        root = join(self.conf.runs_path, self.conf.savepath, date)
         paths = {
-            "root": self.conf.savepath,
-            "audio": join(self.conf.savepath, "audio.wav"),
+            "root": root,
+            "audio": join(root, "audio.wav"),
         }
         return paths
 
@@ -84,6 +92,7 @@ class Agent:
         retico_core.network.stop(self.audio_in)
         t = round(time.time() - t, 2)
         print(f"Process took {t}s")
+        print("Audio saved -> ", self.paths["audio"])
 
 
 if __name__ == "__main__":

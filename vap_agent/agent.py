@@ -13,13 +13,16 @@ from vap_agent.vap_module import VapModule
 
 @dataclass
 class AgentConfig:
-    savepath: str
-    runs_path: str = "runs"
+    savepath: str  # path of this particular run
+    runs_path: str = "runs"  # root for all runs
+    record: bool = True  # if data should be saved
+
+    # AUDIO
     sample_rate: int = 16_000
     sample_width: int = 2
     sample_frame_time: float = 0.02
-    record: bool = True
 
+    # VAP
     audio_buffer_time: float = 20
     vap_refresh_time: float = 0.1
 

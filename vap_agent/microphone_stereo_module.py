@@ -135,11 +135,6 @@ class MicrophoneStereoModule(retico_core.AbstractProducingModule):
             input_device_index=self.device_index,
             start=False,
         )
-        print("format: ", self.stream._format)
-        print("channels: ", self.stream._channels)
-        print("rate: ", self.stream._rate)
-        print("frames_per_buffer: ", self.stream._frames_per_buffer)
-        input()
         if self.device is None:
             device = self._p.get_default_input_device_info()
             print(f"Device: {device['name']}")

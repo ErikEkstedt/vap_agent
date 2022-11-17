@@ -118,10 +118,10 @@ class VapModule(retico_core.AbstractModule):
     def create_update_message(self, out):
         output_iu = self.create_iu()
         output_iu.set_probs(
-            p_now=out["p_now"][0, -self.n_frames :, 1].mean().item(),
-            p_future=out["p_future"][0, -self.n_frames :, 1].mean().item(),
-            p_bc_a=out["p_bc"][0, -self.n_frames :, 0].mean().item(),
-            p_bc_b=out["p_bc"][0, -self.n_frames :, 1].mean().item(),
+            p_now=round(out["p_now"][0, -self.n_frames :, 1].mean().item(), 3),
+            p_future=round(out["p_future"][0, -self.n_frames :, 1].mean().item(), 3),
+            p_bc_a=round(out["p_bc"][0, -self.n_frames :, 0].mean().item(), 3),
+            p_bc_b=round(out["p_bc"][0, -self.n_frames :, 1].mean().item(), 3),
         )
         return retico_core.UpdateMessage.from_iu(output_iu, retico_core.UpdateType.ADD)
 

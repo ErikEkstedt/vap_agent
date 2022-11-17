@@ -48,6 +48,8 @@ class Agent:
         paths = {
             "root": root,
             "audio": join(root, "audio.wav"),
+            "dialog": join(root, "dialog.json"),
+            "turn_taking": join(root, "turn_taking.json"),
         }
         return paths
 
@@ -65,7 +67,9 @@ class Agent:
         self.audio_to_tensor = AudioToTensor(
             buffer_time=self.conf.audio_buffer_time, device=self.vap.device
         )
-        self.turn_taking = TurnTakingModule()
+        self.turn_taking = TurnTakingModule(
+            root=self.paths["root"], record=self.conf.record
+        )
 
         if self.conf.record:
             self.audio_recorder = AudioRecorderModule(
@@ -80,6 +84,7 @@ class Agent:
         # Connect Input modeles
         self.audio_in.subscribe(self.audio_to_tensor)
         print("Audio in      -> AudioToTensor")
+
         self.audio_to_tensor.subscribe(self.vap)
         print("AudioToTensor -> Vap")
 
@@ -90,6 +95,7 @@ class Agent:
         # Connect acoustic vap turn-taking probs to turn-taking module
         self.vap.subscribe(self.turn_taking)
         print("VAP           -> TurnTaking")
+
         print("-" * 50)
 
     def run(self):
@@ -106,8 +112,14 @@ class Agent:
 
 
 if __name__ == "__main__":
-    conf = AgentConfig(savepath="test")
 
+    from argparse import ArgumentParser
+
+    parser = ArgumentParser()
+    parser.add_argument("--record", action="store_true", help="Record dialog")
+    args = parser.parse_args()
+
+    conf = AgentConfig(savepath="test", record=args.record)
     agent = Agent(conf)
 
     agent.run()

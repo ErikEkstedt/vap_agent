@@ -113,8 +113,6 @@ class MicrophoneStereoModule(retico_core.AbstractProducingModule):
 
     def setup(self):
         """Set up the microphone for recording."""
-
-        print("Setup Microphone")
         self.stream = self._p.open(
             format=self._p.get_format_from_width(self.sample_width),
             channels=self.channels,
@@ -126,11 +124,6 @@ class MicrophoneStereoModule(retico_core.AbstractProducingModule):
             input_device_index=self.device_index,
             start=False,
         )
-        if self.device is None:
-            device = self._p.get_default_input_device_info()
-            print(f"Device: {device['name']}")
-        else:
-            print(f"Device: {self.device}")
 
     def prepare_run(self):
         if self.stream:

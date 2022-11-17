@@ -1,6 +1,7 @@
 # Custom
 pyrightconfig.json
 runs/
+node_modules/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

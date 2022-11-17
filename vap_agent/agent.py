@@ -7,7 +7,9 @@ import retico_core
 import time
 
 from vap_agent.audio_recorder_module import AudioRecorderModule
-from vap_agent.microphone_stereo_module import MicrophoneStereoModule, AudioToTensor
+from vap_agent.microphone_stereo_module import MicrophoneStereoModule
+from vap_agent.audio_to_tensor_module import AudioToTensor
+from vap_agent.turn_taking_module import TurnTakingModule
 from vap_agent.vap_module import VapModule
 
 
@@ -63,6 +65,7 @@ class Agent:
         self.audio_to_tensor = AudioToTensor(
             buffer_time=self.conf.audio_buffer_time, device=self.vap.device
         )
+        self.turn_taking = TurnTakingModule()
 
         if self.conf.record:
             self.audio_recorder = AudioRecorderModule(
@@ -72,25 +75,29 @@ class Agent:
                 channels=2,
             )
 
-        # Connect modules
+        print()
+        print("-" * 50)
+        # Connect Input modeles
         self.audio_in.subscribe(self.audio_to_tensor)
+        print("Audio in      -> AudioToTensor")
+        self.audio_to_tensor.subscribe(self.vap)
+        print("AudioToTensor -> Vap")
 
         if self.conf.record:
             self.audio_in.subscribe(self.audio_recorder)
+            print("Audio in      -> AudioRecord")
 
-        self.audio_to_tensor.subscribe(self.vap)
-
-        print("Connected modules")
+        # Connect acoustic vap turn-taking probs to turn-taking module
+        self.vap.subscribe(self.turn_taking)
+        print("VAP           -> TurnTaking")
+        print("-" * 50)
 
     def run(self):
         t = time.time()
         retico_core.network.run(self.audio_in)
-        print("#" * 40)
-        print("#" * 40)
         print("Running agent")
         print("Press ENTER to exit")
-        print("#" * 40)
-        print("#" * 40)
+        print("-" * 40)
         input()
         retico_core.network.stop(self.audio_in)
         t = round(time.time() - t, 2)

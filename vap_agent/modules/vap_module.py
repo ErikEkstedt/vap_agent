@@ -146,8 +146,8 @@ class VapModule(retico_core.AbstractModule):
 
 
 if __name__ == "__main__":
-    from vap_agent.microphone_stereo_module import MicrophoneStereoModule
-    from vap_agent.audio_to_tensor_module import AudioToTensor
+    from vap_agent.modules.microphone_stereo_module import MicrophoneStereoModule
+    from vap_agent.modules.audio_to_tensor_module import AudioToTensor
 
     mic = MicrophoneStereoModule()
     vapper = VapModule(buffer_time=20)

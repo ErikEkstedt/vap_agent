@@ -5,7 +5,7 @@ import retico_core
 import time
 import zmq
 
-from vap_agent.vap_module import VapIU
+from vap_agent.modules.vap_module import VapIU
 
 
 def write_json(data, filename):
@@ -120,7 +120,8 @@ class TurnTakingModule(retico_core.AbstractModule):
                     self.add_last_turn(speaker="a")
 
                     # Take Turn as B
-                    self.zmq_update_speaker("b")
+                    if self.zmq_use:
+                        self.zmq_update_speaker("b")
                     print("           ╰──> BBBBBBBBBBBBB")
                     self.last_speaker = "b"
                     self.na_active = 0
@@ -134,7 +135,8 @@ class TurnTakingModule(retico_core.AbstractModule):
                     self.add_last_turn(speaker="b")
 
                     # Take Turn as A
-                    self.zmq_update_speaker("a")
+                    if self.zmq_use:
+                        self.zmq_update_speaker("a")
                     print("AAAAAA <───╯ ")
                     self.last_speaker = "a"
                     self.nb_active = 0
@@ -195,14 +197,14 @@ class TurnTakingModule(retico_core.AbstractModule):
 
 
 if __name__ == "__main__":
-    from vap_agent.microphone_stereo_module import MicrophoneStereoModule
-    from vap_agent.audio_to_tensor_module import AudioToTensor
-    from vap_agent.vap_module import VapModule
+    from vap_agent.modules.microphone_stereo_module import MicrophoneStereoModule
+    from vap_agent.modules.audio_to_tensor_module import AudioToTensor
+    from vap_agent.modules.vap_module import VapModule
 
     mic = MicrophoneStereoModule()
     vapper = VapModule(buffer_time=20, refresh_time=0.1)
     a2t = AudioToTensor(buffer_time=20, device=vapper.device)
-    tt = TurnTakingModule(cli_print=True)
+    tt = TurnTakingModule(cli_print=True, record=False)
 
     mic.subscribe(a2t)
     a2t.subscribe(vapper)

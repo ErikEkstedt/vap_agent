@@ -7,9 +7,10 @@ m.patch()
 
 
 # Create ZMQ socket
-port = 5557
+port = 5558
 context = zmq.Context()
 INTERVAL = 0.1
+topic = "new_speaker"
 
 pair = False
 if pair:
@@ -27,13 +28,13 @@ if pair:
 else:
     socket = context.socket(zmq.SUB)
     socket.connect(f"tcp://localhost:{port}")
-    topic = "data"
     socket.setsockopt_string(zmq.SUBSCRIBE, topic)
 
     i = 0
     while True:
         topic = socket.recv_string()
-        d = socket.recv_pyobj()
-        print("received: ", type(d))
+        # d = socket.recv_pyobj()
+        d = socket.recv()
+        print("received: ", type(d), d)
         time.sleep(INTERVAL)
         i += 1

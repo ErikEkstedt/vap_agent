@@ -83,7 +83,7 @@ class AudioToTensor(retico_core.AbstractModule):
 
 if __name__ == "__main__":
 
-    from vap_agent.microphone_stereo_module import MicrophoneStereoModule
+    from vap_agent.modules.microphone_stereo_module import MicrophoneStereoModule
 
     mic = MicrophoneStereoModule()
     a2t = AudioToTensor()

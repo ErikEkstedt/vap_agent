@@ -14,7 +14,6 @@ from vap_agent.modules import (
     TurnTakingModule,
     VapModule,
 )
-
 from vap.utils import write_json
 
 

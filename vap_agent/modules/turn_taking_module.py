@@ -61,7 +61,6 @@ class TurnTakingModule(retico_core.AbstractModule):
         # Paths
         self.root = root
         self.filepath = join(root, "turn_taking.json")
-        self.log_filepath = join(root, "turn_taking_log.txt")
 
         # Log file
         self.log_vap = None
@@ -142,29 +141,11 @@ class TurnTakingModule(retico_core.AbstractModule):
                     self.nb_active = 0
                     self.a_prev_start = self.get_current_time()
 
-    def log(self, iu):
-        """
-        log IU information
-        TIME P-NOW P-FUTURE P-BC-A P-BC-B
-        """
-        if self.log_vap:
-            t = round(self.get_current_time(), 3)
-            s = f"{t}"
-            s += f" {iu.p_now}"
-            s += f" {iu.p_future}"
-            s += f" {iu.p_bc_a}"
-            s += f" {iu.p_bc_b}"
-            s += "\n"
-            self.log_vap.write(s)
-
     def process_update(self, update_msg):
         for iu, ut in update_msg:
             if ut != retico_core.UpdateType.ADD:
                 continue
-
             self.update_turn_state(iu)
-            self.log(iu)
-
             if self.cli_print:
                 pnow_text = self.get_speaker_probs_text(iu.p_now)
                 pfut_text = self.get_speaker_probs_text(iu.p_future, marker="=")
@@ -173,27 +154,19 @@ class TurnTakingModule(retico_core.AbstractModule):
 
     def setup(self):
         self.t0 = time.time()
-        if self.record:
-            self.log_vap = open(self.log_filepath, "w")
-            self.log_vap.write("TIME P-NOW P-FUTURE P-BC-A P-BC-B\n")
-
         if self.zmq_use:
-            pass
             socket_ip = f"tcp://*:{self.zmq_port}"
             self.socket = zmq.Context().socket(zmq.PUB)
             self.socket.bind(socket_ip)
             print("Setup TurnTaking ZMQ socket: ", socket_ip)
 
     def shutdown(self):
-
         # last turn
         if self.last_speaker != self.dialog[-1]["speaker"]:
             self.add_last_turn(self.last_speaker)
 
-        write_json(self.dialog, self.filepath)
-        if self.log_vap:
-            self.log_vap.close()
-            self.log_vap = None
+        if self.record:
+            write_json(self.dialog, self.filepath)
 
 
 if __name__ == "__main__":

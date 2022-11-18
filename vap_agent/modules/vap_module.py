@@ -3,6 +3,7 @@ import retico_core
 import threading
 import time
 import torch
+from os.path import join
 
 from vap_agent.utils import TensorIU
 
@@ -30,6 +31,10 @@ def vapCallback(update_msg):
 
 
 class VapIU(retico_core.abstract.IncrementalUnit):
+    """
+    Stores the output from VapModel
+    """
+
     @staticmethod
     def type():
         return "VapModel IU"
@@ -40,15 +45,23 @@ class VapIU(retico_core.abstract.IncrementalUnit):
         self.p_future = None
         self.p_bc_a = None
         self.p_bc_b = None
+        self.H = None
+        self.v1 = None
+        self.v2 = None
 
-    def set_probs(self, p_now, p_future, p_bc_a, p_bc_b):
+    def set_probs(self, p_now, p_future, p_bc_a, p_bc_b, H, v1, v2):
         self.p_now = p_now
         self.p_future = p_future
         self.p_bc_a = p_bc_a
         self.p_bc_b = p_bc_b
+        self.H = H
+        self.v1 = v1
+        self.v2 = v2
 
 
 class VapModule(retico_core.AbstractModule):
+    LOG_HEAD = "TIME P-NOW P-FUTURE P-BC-A P-BC-B ENTROPY V1 V2"
+
     @staticmethod
     def name():
         return "VapModule"
@@ -73,6 +86,8 @@ class VapModule(retico_core.AbstractModule):
         now_lims: List[int] = [0, 1],
         future_lims: List[int] = [2, 3],
         n_frames: int = 20,
+        root: str = "",
+        record: bool = False,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -81,6 +96,11 @@ class VapModule(retico_core.AbstractModule):
         self.sample_rate = 16_000
         self.buffer_time = buffer_time
         self.n_samples = int(buffer_time * self.sample_rate)
+
+        # paths logs
+        self.record = record
+        self.root = root
+        self.filepath = join(root, "turn_taking_log.txt")
 
         # VapModel
         self.now_lims = now_lims
@@ -116,12 +136,24 @@ class VapModule(retico_core.AbstractModule):
 
     def create_update_message(self, out):
         output_iu = self.create_iu()
+
+        # v1 = out["vad"][0, -self.n_frames :, 0].mean().item()
+        # v2 = out["vad"][0, -self.n_frames :, 1].mean().item()
+        v1 = out["vad"][0, -5:, 0].max().item()
+        v2 = out["vad"][0, -5:, 1].max().item()
+
         output_iu.set_probs(
             p_now=round(out["p_now"][0, -self.n_frames :, 0].mean().item(), 3),
             p_future=round(out["p_future"][0, -self.n_frames :, 0].mean().item(), 3),
             p_bc_a=round(out["p_bc"][0, -self.n_frames :, 0].mean().item(), 3),
             p_bc_b=round(out["p_bc"][0, -self.n_frames :, 1].mean().item(), 3),
+            H=round(out["H"][0, -self.n_frames :].mean().item(), 3),
+            v1=round(v1, 3),
+            v2=round(v2, 3),
         )
+
+        if self.record:
+            self.log(output_iu)
         return retico_core.UpdateMessage.from_iu(output_iu, retico_core.UpdateType.ADD)
 
     def _thread(self):
@@ -134,7 +166,32 @@ class VapModule(retico_core.AbstractModule):
             self.append(update_msg)
 
     def setup(self):
-        pass
+        self.t0 = time.time()
+        if self.record:
+            # add first row of txt-file
+            self.logfile = open(self.filepath, "w")
+            self.logfile.write(self.LOG_HEAD + "\n")
+
+    def log(self, iu):
+        """
+        log IU information
+        """
+
+        if self.logfile is not None:
+            t = round(self.get_current_time(), 3)
+            s = f"{t}"
+            s += f" {iu.p_now}"
+            s += f" {iu.p_future}"
+            s += f" {iu.p_bc_a}"
+            s += f" {iu.p_bc_b}"
+            s += f" {iu.H}"
+            s += f" {iu.v1}"
+            s += f" {iu.v2}"
+            s += "\n"
+            self.logfile.write(s)
+
+    def get_current_time(self):
+        return time.time() - self.t0
 
     def prepare_run(self):
         self._thread_is_active = True
@@ -143,6 +200,11 @@ class VapModule(retico_core.AbstractModule):
     def shutdown(self):
         self._thread_is_active = False
         print("Shutdown VAP")
+
+        if self.record:
+            print("Closed: ", self.filepath)
+            self.logfile.close()
+            self.logfile = None
 
 
 if __name__ == "__main__":

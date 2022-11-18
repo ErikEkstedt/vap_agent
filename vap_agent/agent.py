@@ -9,6 +9,7 @@ import time
 from vap_agent.modules import (
     AudioRecorderModule,
     AudioRecorderModule,
+    ASRModule,
     MicrophoneStereoModule,
     AudioToTensor,
     TurnTakingModule,
@@ -39,6 +40,11 @@ class AgentConfig:
     zmq_use: bool = True
     zmq_port: int = 5558
 
+    # ASR
+    asr: bool = True
+    asr_model_name: str = "wav2vec2"
+    asr_refresh_time: float = 0.1
+
 
 class Agent:
     def __init__(self, conf) -> None:
@@ -46,8 +52,8 @@ class Agent:
 
         ###############################################
         # Create savepath
+        self.paths = self._paths()
         if self.conf.record:
-            self.paths = self._paths()
             Path(self.paths["root"]).mkdir(parents=True, exist_ok=True)
             print("Created: ", self.paths["root"])
             self.save_conf()
@@ -79,10 +85,13 @@ class Agent:
         self.vap = VapModule(
             buffer_time=self.conf.audio_buffer_time,
             refresh_time=self.conf.vap_refresh_time,
+            root=self.paths["root"],
+            record=self.conf.record,
         )
         self.audio_to_tensor = AudioToTensor(
             buffer_time=self.conf.audio_buffer_time, device=self.vap.device
         )
+
         self.turn_taking = TurnTakingModule(
             n_threshold_active=self.conf.tt_threshold_active,
             root=self.paths["root"],
@@ -90,6 +99,18 @@ class Agent:
             zmq_use=self.conf.zmq_use,
             zmq_port=self.conf.zmq_port,
         )
+        if self.conf.asr:
+            self.asr = ASRModule(
+                model_name=self.conf.asr_model_name,
+                refresh_time=self.conf.asr_refresh_time,
+                root=self.paths["root"],
+                record=self.conf.record,
+            )
+
+        assert self.vap.device == self.audio_to_tensor.device, "Devices don't match"
+
+        if self.conf.asr:
+            assert self.asr.device == self.audio_to_tensor.device, "Devices don't match"
 
         if self.conf.record:
             self.audio_recorder = AudioRecorderModule(
@@ -107,6 +128,10 @@ class Agent:
 
         self.audio_to_tensor.subscribe(self.vap)
         print("AudioToTensor -> Vap")
+
+        if self.conf.asr:
+            self.audio_to_tensor.subscribe(self.asr)
+            print("AudioToTensor -> ASR")
 
         if self.conf.record:
             self.audio_in.subscribe(self.audio_recorder)
@@ -128,7 +153,11 @@ class Agent:
         retico_core.network.stop(self.audio_in)
         t = round(time.time() - t, 2)
         print(f"Process took {t}s")
-        print("Session saved -> ", self.paths["root"])
+
+        if self.conf.record:
+            print("------------------------------------")
+            print("Session saved -> ", self.paths["root"])
+            print("------------------------------------")
 
 
 if __name__ == "__main__":
@@ -136,10 +165,12 @@ if __name__ == "__main__":
     from argparse import ArgumentParser
 
     parser = ArgumentParser()
+    parser.add_argument("--name", type=str, default="test", help="Session name")
     parser.add_argument("--record", action="store_true", help="Record dialog")
+    parser.add_argument("--asr", action="store_true", help="Use ASR technology")
     args = parser.parse_args()
 
-    conf = AgentConfig(savepath="test", record=args.record)
+    conf = AgentConfig(savepath=args.name, record=args.record, asr=args.asr)
     agent = Agent(conf)
 
     agent.run()

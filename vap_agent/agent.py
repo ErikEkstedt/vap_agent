@@ -2,7 +2,7 @@ from os.path import join
 from pathlib import Path
 import datetime
 
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 import retico_core
 import time
 
@@ -11,6 +11,8 @@ from vap_agent.microphone_stereo_module import MicrophoneStereoModule
 from vap_agent.audio_to_tensor_module import AudioToTensor
 from vap_agent.turn_taking_module import TurnTakingModule
 from vap_agent.vap_module import VapModule
+
+from vap.utils import write_json
 
 
 @dataclass
@@ -25,8 +27,12 @@ class AgentConfig:
     sample_frame_time: float = 0.02
 
     # VAP
-    audio_buffer_time: float = 20
-    vap_refresh_time: float = 0.1
+    audio_buffer_time: float = 20  # input duration to VAP
+    vap_refresh_time: float = -0.5  # negative value processes without timeout
+
+    # TurnTaking
+    # consecutive frames of the next-speaker to trigger turn
+    tt_threshold_active: int = 3
 
 
 class Agent:
@@ -36,22 +42,27 @@ class Agent:
         ###############################################
         # Create savepath
         if self.conf.record:
+            self.paths = self._paths()
             Path(self.paths["root"]).mkdir(parents=True, exist_ok=True)
             print("Created: ", self.paths["root"])
+            self.save_conf()
         self.build()
 
-    @property
-    def paths(self):
-        x = datetime.datetime.now()
-        date = x.strftime("%y%m%d_%H:%M")
-        root = join(self.conf.runs_path, self.conf.savepath, date)
+    def _paths(self):
+        datetime_now = datetime.datetime.now()
+        date_name = datetime_now.strftime("%y%m%d_%H-%M")
+        root = join(self.conf.runs_path, self.conf.savepath, date_name)
         paths = {
             "root": root,
+            "conf": join(root, "conf.json"),
             "audio": join(root, "audio.wav"),
             "dialog": join(root, "dialog.json"),
             "turn_taking": join(root, "turn_taking.json"),
         }
         return paths
+
+    def save_conf(self):
+        write_json(asdict(self.conf), self.paths["conf"])
 
     def build(self):
         self.audio_in = MicrophoneStereoModule(
@@ -68,7 +79,9 @@ class Agent:
             buffer_time=self.conf.audio_buffer_time, device=self.vap.device
         )
         self.turn_taking = TurnTakingModule(
-            root=self.paths["root"], record=self.conf.record
+            n_threshold_active=self.conf.tt_threshold_active,
+            root=self.paths["root"],
+            record=self.conf.record,
         )
 
         if self.conf.record:
@@ -108,7 +121,7 @@ class Agent:
         retico_core.network.stop(self.audio_in)
         t = round(time.time() - t, 2)
         print(f"Process took {t}s")
-        print("Audio saved -> ", self.paths["audio"])
+        print("Session saved -> ", self.paths["root"])
 
 
 if __name__ == "__main__":

@@ -93,7 +93,6 @@ class VapModule(retico_core.AbstractModule):
         self.x = torch.zeros((1, 2, self.n_samples), device=self.device)
 
     def load_model(self, checkpoint):
-
         print()
         print("-" * 50)
         print("Load Vap Model (pytorch)...")
@@ -118,8 +117,8 @@ class VapModule(retico_core.AbstractModule):
     def create_update_message(self, out):
         output_iu = self.create_iu()
         output_iu.set_probs(
-            p_now=round(out["p_now"][0, -self.n_frames :, 1].mean().item(), 3),
-            p_future=round(out["p_future"][0, -self.n_frames :, 1].mean().item(), 3),
+            p_now=round(out["p_now"][0, -self.n_frames :, 0].mean().item(), 3),
+            p_future=round(out["p_future"][0, -self.n_frames :, 0].mean().item(), 3),
             p_bc_a=round(out["p_bc"][0, -self.n_frames :, 0].mean().item(), 3),
             p_bc_b=round(out["p_bc"][0, -self.n_frames :, 1].mean().item(), 3),
         )

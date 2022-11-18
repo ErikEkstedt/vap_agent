@@ -52,8 +52,8 @@ class AudioToTensor(retico_core.AbstractModule):
         chunk = torch.frombuffer(audio_bytes, dtype=torch.int16).float() * NORM_FACTOR
 
         # Split stereo audio
-        b = chunk[::2]
-        a = chunk[1::2]
+        a = chunk[::2]
+        b = chunk[1::2]
         chunk_size = a.shape[0]
 
         # Move values back

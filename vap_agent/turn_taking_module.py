@@ -44,7 +44,7 @@ class TurnTakingModule(retico_core.AbstractModule):
 
     def __init__(
         self,
-        n_threshold_active=3,
+        n_threshold_active=2,
         cli_print: bool = False,
         root: str = "",
         record: bool = False,
@@ -80,13 +80,13 @@ class TurnTakingModule(retico_core.AbstractModule):
     def get_current_time(self):
         return time.time() - self.t0
 
-    def add_last_turn(self):
-        speaker = "a"
-        start = self.a_prev_start
+    def add_last_turn(self, speaker):
+
         end = self.get_current_time()
-        if self.last_speaker == "b":
+        if speaker == "a":
+            start = self.a_prev_start
+        else:
             start = self.b_prev_start
-            speaker = "b"
 
         turn = {"start": start, "end": end, "speaker": speaker}
         # turn = Turn(start=start, end=end, speaker=speaker)
@@ -94,30 +94,30 @@ class TurnTakingModule(retico_core.AbstractModule):
 
     def update_turn_state(self, iu):
         if self.last_speaker is None:
-            self.last_speaker = "a" if iu.p_now < 0.5 else "b"
+            self.last_speaker = "a" if iu.p_now > 0.5 else "b"
 
         # TURN-SHIFT CONDITIONS
         if self.last_speaker == "a":
-            if iu.p_now > 0.5:
+
+            if iu.p_now < 0.5:
                 self.nb_active += 1
                 if self.nb_active >= self.n_threshold_active:
 
                     # We add previous turn (forced to belong to a)
-                    self.add_last_turn()
+                    self.add_last_turn(speaker="a")
 
                     # Take Turn as B
                     print("           ╰──> BBBBBBBBBBBBB")
                     self.last_speaker = "b"
                     self.na_active = 0
                     self.b_prev_start = self.get_current_time()
-
         else:
-            if iu.p_now < 0.5:
+            if iu.p_now > 0.5:
                 self.na_active += 1
                 if self.na_active >= self.n_threshold_active:
 
                     # We add previous turn (forced to belong to b)
-                    self.add_last_turn()
+                    self.add_last_turn(speaker="b")
 
                     # Take Turn as A
                     print("AAAAAA <───╯ ")
@@ -130,7 +130,6 @@ class TurnTakingModule(retico_core.AbstractModule):
         log IU information
         TIME P-NOW P-FUTURE P-BC-A P-BC-B
         """
-
         if self.log_vap:
             t = round(self.get_current_time(), 3)
             s = f"{t}"
@@ -162,6 +161,11 @@ class TurnTakingModule(retico_core.AbstractModule):
             self.log_vap.write("TIME P-NOW P-FUTURE P-BC-A P-BC-B\n")
 
     def shutdown(self):
+
+        # last turn
+        if self.last_speaker != self.dialog[-1]["speaker"]:
+            self.add_last_turn(self.last_speaker)
+
         write_json(self.dialog, self.filepath)
         if self.log_vap:
             self.log_vap.close()

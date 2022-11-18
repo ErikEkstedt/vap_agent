@@ -1,8 +1,9 @@
+from dataclasses import dataclass
+from os.path import join
+import json
 import retico_core
 import time
-from dataclasses import dataclass
-import json
-from os.path import join
+import zmq
 
 from vap_agent.vap_module import VapIU
 
@@ -48,6 +49,8 @@ class TurnTakingModule(retico_core.AbstractModule):
         cli_print: bool = False,
         root: str = "",
         record: bool = False,
+        zmq_use: bool = False,
+        zmq_port: int = 5558,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -55,11 +58,12 @@ class TurnTakingModule(retico_core.AbstractModule):
         self.cli_print = cli_print
         self.record = record
 
+        # Paths
         self.root = root
         self.filepath = join(root, "turn_taking.json")
         self.log_filepath = join(root, "turn_taking_log.txt")
 
-        # Log files
+        # Log file
         self.log_vap = None
 
         # Turn state
@@ -67,6 +71,11 @@ class TurnTakingModule(retico_core.AbstractModule):
         self.last_speaker = None
         self.na_active, self.nb_active = 0, 0
         self.b_prev_start, self.a_prev_start = 0, 0
+
+        # ZMQ
+        self.zmq_use = zmq_use
+        self.zmq_port = zmq_port
+        self.zmq_topic = "new_speaker"
 
     def get_speaker_probs_text(self, pp, n=100, marker="▉"):
         p = int(n * pp)
@@ -92,6 +101,10 @@ class TurnTakingModule(retico_core.AbstractModule):
         # turn = Turn(start=start, end=end, speaker=speaker)
         self.dialog.append(turn)
 
+    def zmq_update_speaker(self, new_current_speaker):
+        self.socket.send_string(self.zmq_topic, zmq.SNDMORE)
+        self.socket.send_string(new_current_speaker)
+
     def update_turn_state(self, iu):
         if self.last_speaker is None:
             self.last_speaker = "a" if iu.p_now > 0.5 else "b"
@@ -107,6 +120,7 @@ class TurnTakingModule(retico_core.AbstractModule):
                     self.add_last_turn(speaker="a")
 
                     # Take Turn as B
+                    self.zmq_update_speaker("b")
                     print("           ╰──> BBBBBBBBBBBBB")
                     self.last_speaker = "b"
                     self.na_active = 0
@@ -120,6 +134,7 @@ class TurnTakingModule(retico_core.AbstractModule):
                     self.add_last_turn(speaker="b")
 
                     # Take Turn as A
+                    self.zmq_update_speaker("a")
                     print("AAAAAA <───╯ ")
                     self.last_speaker = "a"
                     self.nb_active = 0
@@ -159,6 +174,13 @@ class TurnTakingModule(retico_core.AbstractModule):
         if self.record:
             self.log_vap = open(self.log_filepath, "w")
             self.log_vap.write("TIME P-NOW P-FUTURE P-BC-A P-BC-B\n")
+
+        if self.zmq_use:
+            pass
+            socket_ip = f"tcp://*:{self.zmq_port}"
+            self.socket = zmq.Context().socket(zmq.PUB)
+            self.socket.bind(socket_ip)
+            print("Setup TurnTaking ZMQ socket: ", socket_ip)
 
     def shutdown(self):
 

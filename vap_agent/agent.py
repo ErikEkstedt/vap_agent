@@ -33,6 +33,8 @@ class AgentConfig:
     # TurnTaking
     # consecutive frames of the next-speaker to trigger turn
     tt_threshold_active: int = 3
+    zmq_use: bool = True
+    zmq_port: int = 5558
 
 
 class Agent:
@@ -82,6 +84,8 @@ class Agent:
             n_threshold_active=self.conf.tt_threshold_active,
             root=self.paths["root"],
             record=self.conf.record,
+            zmq_use=self.conf.zmq_use,
+            zmq_port=self.conf.zmq_port,
         )
 
         if self.conf.record:

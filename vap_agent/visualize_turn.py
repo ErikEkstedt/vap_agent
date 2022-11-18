@@ -87,6 +87,8 @@ def plot_vap(vap, ax=None):
         label="P-future",
     )
     ax.axhline(0.5, linewidth=1, linestyle="dashed", color="k")
+    ax.axhline(0.4, linewidth=1, linestyle="dashed", color="k", alpha=0.3)
+    ax.axhline(0.6, linewidth=1, linestyle="dashed", color="k", alpha=0.3)
     ax.set_xlim([0, vap["time"][-1]])
     ax.set_yticks([])
     ax.legend()

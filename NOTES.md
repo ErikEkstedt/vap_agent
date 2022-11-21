@@ -51,7 +51,11 @@ start of the **second**.
 
 ## at turn-shift projections
 ![vad requires context](assets/note_3_turn_shift_projection_entropy.png)
-The entropy "generally" increases at the end of turns which can indicate that the model anticipates a turn-shift. During a turn the model can mostly focus on modelling the current speaker but in proximity to a turn-shift the influence of the second speaker increases which is reflected in the rise in entropy.
+
+The entropy "generally" increases at the end of turns which can indicate that
+the model anticipates a turn-shift. During a turn the model can mostly focus on
+modelling the current speaker but in proximity to a turn-shift the influence of
+the second speaker increases which is reflected in the rise in entropy.
 
 
 # Future and Now Projection Divergence vs Convergence
@@ -75,7 +79,7 @@ We plot the prediction probability of a backchannel (zero-shot classes) from the
     * phrase boundaries
     * breath groups
 
-# Fillers
+# Silence with filler
 ![Post Silence](assets/post_filler_first_example.png)
 ![Post Silence](assets/post_no_filler_first_example.png)
 
@@ -84,12 +88,17 @@ We plot the prediction probability of a backchannel (zero-shot classes) from the
 ![Post Silence](assets/note_post_quiet.png)
 
 
-# Silence with filler
+# Miscellaneous
 
-
----------------------------------------------
-
-# Add ASR with some text so we can look at TurnGPT
-
-
-![add turngpt](assets/note_4_add_turngpt.png)
+* What is the meaning of the **flippening**?
+    - future/now reversal
+* Backchannel: The future prediction flips the "current" prediction.
+![bc flippening](assets/bc_flippening.png)
+* Scale prediction probabilities with duration of current utterance
+    - Average utterance duration up until this moment
+    - Phrase reboot
+    - The model that teaches autistic people how to behave.
+* Yes/No: scream!
+    - What's a yes and what's YES! ?
+* Who wins at overlap competition?
+    - Intensity, f0, etc...

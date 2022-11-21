@@ -3,9 +3,14 @@
 
 #### Organization
 
-* [Overbleed is recognized with context]()
-* [Overbleed at onset]()
-* [Entropy at turn-shift projections]()
+* [VAD & Overbleed](#VAD-and-Overbleed)
+* [Entropy](#Entropy)
+    * [at onset](#at-onset)
+    * [at turn-shift projections](#at-turn-shift-projections)
+* [Next Speaker Probability Convergence/Divergence](#Next-Speaker-Probability-Convergence/Divergence)
+* [Backchannel](#Backchannel)
+* [Silence & Fillers](#Silence-&-filler)
+* [Silence](#Silence)
 
 #### Vocabulary
 * Turn-taking state:
@@ -16,7 +21,7 @@
 # Overview Example
 ![Example](assets/session_example.png)
 
-# Overbleed is recognized with context
+# VAD and Overbleed
 ![vad requires context](assets/note_1_vad.png)
 The overbleed in channel 2 is recognized as noise after around a second of speech. We note that the entropy is decreasing over the same period (kinda).
 
@@ -58,7 +63,7 @@ modelling the current speaker but in proximity to a turn-shift the influence of
 the second speaker increases which is reflected in the rise in entropy.
 
 
-# Future and Now Projection Divergence vs Convergence
+# Next Speaker Probability Convergence/Divergence
 ![add turngpt](assets/note_6_now_future_divergence.png)
 * Divergence:
     * The future "believes" the turn is ending (in 600-2000ms)
@@ -79,7 +84,7 @@ We plot the prediction probability of a backchannel (zero-shot classes) from the
     * phrase boundaries
     * breath groups
 
-# Silence with filler
+# Silence & filler
 ![Post Silence](assets/post_filler_first_example.png)
 ![Post Silence](assets/post_no_filler_first_example.png)
 

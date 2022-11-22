@@ -2,6 +2,7 @@
 pyrightconfig.json
 runs/
 node_modules/
+debug/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
